@@ -28,6 +28,7 @@ nprocs=`grep -c "^processor" /proc/cpuinfo`
 
 mkdir -p $tarballs $build $prefix/{lib,share,etc,include} $tags
 
+export OGRE_HOME=$prefix
 export PATH=$prefix/bin:$PATH
 export PKG_CONFIG_PATH=$prefix/lib/pkgconfig
 export NAALI_DEP_PATH=$prefix
@@ -116,6 +117,21 @@ fi
 mkdir -p $viewer/bin/qtplugins/script
 cp -lf $build/$what/plugins/script/* $viewer/bin/qtplugins/script/
 
+what=Assimp
+if test -f $tags/$what-done; then
+	echo $what is done
+else
+	cd $build
+	rm -fr $what
+	git clone git://github.com/assimp/assimp.git $what
+	cd $what
+	sed -e "s/string_type::size_type/typename string_type::size_type/" < code/ObjTools.h > x
+	mv x code/ObjTools.h
+	cmake -DCMAKE_INSTALL_PREFIX=$prefix .
+	make -j $nprocs
+	make install
+	touch $tags/$what-done
+fi
 
 what=kNet
 if test -f $tags/$what-done; then 
@@ -231,25 +247,17 @@ else
     sed 's/CocoaRequestModal = QEvent::CocoaRequestModal,//' < $fn > x
     mv x $fn
     qmake
-    make -j $nprocs
+    if ! make -j $nprocs; then
+    # work around PythonQt vs Qt 4.8 incompatibility
+	cd src
+	rm -f moc_PythonQtStdDecorators.cpp
+	make moc_PythonQtStdDecorators.cpp
+	sed -i -e 's/void PythonQtStdDecorators::qt_static_metacall/#undef emit\nvoid PythonQtStdDecorators::qt_static_metacall/'  moc_PythonQtStdDecorators.cpp
+	cd ..
+	make -j $nprocs
+    fi
     rm -f $prefix/lib/libPythonQt*
     cp -a lib/libPythonQt* $prefix/lib/
-    
-    # work around PythonQt vs Qt 4.8 incompatibility
-    cd src
-    make moc_PythonQtStdDecorators.cpp
-    ed moc_PythonQtStdDecorators.cpp <<EOF
-/qt_static_metacall
--
-a
-#undef emit
-.
-w
-q
-EOF
-    cd ..
-    # end of workaround
-
     cp src/PythonQt*.h $prefix/include/
     cp extensions/PythonQt_QtAll/PythonQt*.h $prefix/include/
     touch $tags/pythonqt-done
