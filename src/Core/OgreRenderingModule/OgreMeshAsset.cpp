@@ -528,7 +528,10 @@ void OgreMeshAsset::AssimpConversionDone(bool success)
     	    assetAPI->AssetLoadCompleted(Name());
 	}
 	else
+	{
+		assetAPI->AssetLoadFailed(Name());
 		LogError("OgreMeshAsset::DeserializeFromData: Failed to to covert " + Name() +" to Ogre mesh.");
+	}
 
 	delete importer;
 	
